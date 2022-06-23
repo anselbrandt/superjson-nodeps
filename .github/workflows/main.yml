@@ -1,0 +1,56 @@
+name: CI
+on: [pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node: [14.x, 12.x, 10.x]
+
+    env:
+      CI: true
+      YARN_IGNORE_ENGINES: true
+
+    steps:
+      - name: Begin CI...
+        uses: actions/checkout@v2
+
+      - name: Use Node
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Use cached node_modules
+        uses: actions/cache@v2
+        with:
+          path: node_modules
+          key: nodeModules-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            nodeModules-
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Test
+        run: yarn test --ci --coverage --maxWorkers=2
+
+      - name: Build
+        run: yarn build
+
+      - name: Run benchmark
+        run: node benchmark.js | tee output.txt
+        env:
+          NODE_ENV: production
+
+      - name: Store benchmark result
+        uses: rhysd/github-action-benchmark@v1
+        with:
+          tool: 'benchmarkjs'
+          output-file-path: output.txt
+          comment-on-alert: true
+          save-data-file: ${{ github.ref == 'refs/heads/main' }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
